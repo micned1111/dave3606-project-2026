@@ -1,0 +1,88 @@
+Question:
+    Create indexes so your service can quickly answer questions:
+        - Which LEGO sets contain a specific brick type, regardless of color?
+        - Which LEGO sets contain bricks of a specific color, regardless of type
+
+Answer:
+    Looking at the composite PK that I created in lego_inventory for task1 (set_id, brick_type_id, color_id),
+    I will have to create two indexes in honor to have quick access to "LEGO sets based on a specific brick
+    type" and "LEGO sets based on a specific color", one index on brick_type_id, and another on color_id. Thats
+    because set_id is the first column in the composite PK, and the table will therefore be ordered first on
+    set_id. Optionally, I could change the PK from test1 to: (brick_type_id, color_id, setId), that way I would
+    only need to add one index on lego_inventory, specifically on color_id. I would not need an index on 
+    brick_type_id because the table is already ordered based on this column from the PK. However, this would
+    slow down set_id-first lookups. 
+
+SQL commands for testing queries before optimizing with indexes:
+    lego-db=# SELECT set_id FROM lego_inventory WHERE brick_type_id = '198327'; (ran this a few times to find avg. time)
+    Time: 132.807 ms
+    Time:  91.025 ms
+    Time: 117.235 ms
+    Time: 116.161 ms
+    Time: 110.326 ms
+    Avg. time: 113.511 ms
+
+    lego-db=# SELECT set_id FROM lego_inventory WHERE color_id = 0; (ran a few times)
+    Time: 130.476 ms
+    Time: 158.652 ms
+    Time: 110.994 ms
+    Time: 106.075 ms
+    Time: 102.580 ms
+    Avg. time: 121.755 ms
+    
+
+SQL commands for creating indexes:
+    lego-db=# CREATE INDEX brick_type_id_index on lego_inventory (brick_type_id);
+    lego-db=# CREATE INDEX color_id_index on lego_inventory (color_id);
+
+SQL commands for testing queries after adding indexes:
+    lego-db=# SELECT set_id FROM lego_inventory WHERE brick_type_id = '198327';
+    Time: 8.144 ms
+    Time: 0.748 ms
+    Time: 0.775 ms
+    Time: 0.943 ms
+    Time: 0.904 ms
+    Avg. time: 2.303 ms (A LOT faster)
+
+    lego-db=# SELECT set_id FROM lego_inventory WHERE color_id = 0;
+    Time: 236.664 ms
+    Time: 236.687 ms
+    Time: 230.673 ms
+    Time: 239.086 ms
+    Time: 213.920 ms
+    Avg. time: 231.406 ms (slower)
+
+Seing that the average time got worse after creating the index on color_id got me thinking. The reasonable explanation 
+for this is that brick_type_id in my test is highly selective (meaning very few matches), so the index gives a big speedup. 
+On the other hand, color_id = 1 is low-selective (meaning many matches), so using the index causes many heap lookups which
+in this case is slower than a sequential scan (not using the index). The EXPLAIN ANALYZE results below supports this: 
+
+    Used EXPLAIN ANALYZE on SQL query on color_id without index on color_id:
+        Gather  (cost=1000.00..19041.43 rows=40398 width=7) (actual time=2.441..126.244 rows=41888.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared read=7752 written=2
+        ->  Parallel Seq Scan on lego_inventory  (cost=0.00..14001.63 rows=16832 width=7) (actual time=0.165..113.494 rows=13962.67 loops=3)
+                Filter: (color_id = 0)
+                Rows Removed by Filter: 386014
+                Buffers: shared read=7752 written=2
+        Planning:
+        Buffers: shared hit=2 read=3 dirtied=2
+        Planning Time: 1.028 ms
+        Execution Time: 128.218 ms
+
+    Used EXPLAIN ANALYZE on SQL query on color_id with index on color_id
+        Bitmap Heap Scan on lego_inventory  (cost=453.51..8710.49 rows=40398 width=7) (actual time=17.623..263.057 rows=41888.00 loops=1)
+        Recheck Cond: (color_id = 0)
+        Heap Blocks: exact=5704
+        Buffers: shared read=5742
+        ->  Bitmap Index Scan on color_id_index  (cost=0.00..443.41 rows=40398 width=0) (actual time=14.933..14.933 rows=41888.00 loops=1)
+                Index Cond: (color_id = 0)
+                Index Searches: 1
+                Buffers: shared read=38
+        Planning Time: 1.125 ms
+        Execution Time: 265.148 ms
+        (10 rows)
+
+Finally:
+    With these results, I decided to keep the index on brick_type_id in lego_inventory, but deleted the other index on color_id

@@ -1,0 +1,41 @@
+Question:
+    Given the column order that you chose, which kinds of queries will be sped up by your primary keys?
+
+Assumptions and Constraint:
+    Although I am not sure, I dont think we are supposed to alter the tables by creating any new columns.
+    When Åsmund says: "two options for PK in lego_brick" I assume its the order of a composite key, not 
+    surrogat key vs composite key. In other words, I dont think this task is about creating surrogat keys, 
+    but instead creating composite keys and figure out which order the columns in the composite keys should 
+    be in (perhaps this is discovered later). Therefore, I am not considering and analyzing the differenc 
+    between making a surrogat key vs a composite key. 
+
+Answer:
+    These where the PKs I chose for each table:
+        - lego_set: id 
+            * I ran the SQL command: SELECT id, COUNT() FROM lego_set GROUP by id HAVING COUNT() > 1;
+            * The result of this command was (0 rows), which proved to me that id was infact unique
+            * Therefore it was logical to use this column as the PK
+
+        - lego_brick: composite PK (brick_type_id, color_id)
+            * This PK makes lookups starting with brick_type_id fast
+            * The other option was to change the order to make lookups starting with color_id faster
+            * However, this can easily be solved later by creating an index on color_id 
+        
+        - lego_inventory: composite PK(set_id, brick_type_id, color_id)
+            * This PK makes lookups starting with set_id fast
+            * Same thing here, the other options would have been a different order of the columns
+            * Again, if I need fast lookups for brick_type_id or color_id --> add index
+
+    For FKs:
+        - lego_inventory:
+            * The table breaking up the many-to-many relation between lego_set and lego_brick
+            * because a lego set can contain many bricks, and a brick can be used in many sets
+            * set_id FK pointing to id in lego_set table
+            * (brick_type_id, color_id) FK pointing to (brick_type_id, color_id) in lego_brick table
+
+SQL commands to create PKs and FKs:
+    - ALTER TABLE lego_set ADD CONSTRAINT PK_lego_set PRIMARY KEY (id);
+    - ALTER TABLE lego_brick ADD CONSTRAINT PK_lego_brick PRIMARY KEY (brick_type_id, color_id);
+    - ALTER TABLE lego_inventory ADD CONSTRAINT PK_lego_inventory PRIMARY KEY (set_id, brick_type_id, color_id);
+
+    - ALTER TABLE lego_inventory ADD CONSTRAINT FK_lego_set_id FOREIGN KEY (set_id) REFERENCES lego_set (id);

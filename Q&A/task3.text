@@ -1,0 +1,43 @@
+Explanation of slow algorithm:
+    The algorithm repeatedly rebuilds the rows string by doing:
+        - existing_rows = rows, followed by
+        - rows = existing_rows + "..." (<- new row here)
+    which is done inside the loop, for each row! This algorithm therefore
+    results in a quadratic behavior (runtime complexity of n^2). 
+
+The improved version of the code collects each row fragment inside the loop
+and adds it to the rows-variable, which in this case is a list []. After the
+loop is finished iterating over the rows, the list is joins each element 
+together into a string. In comparison to the old algorithm, this new one 
+is linear (runtime complexity of n). The measurements down below supports this:
+
+    With previous slow algorithm:
+        Time to render all sets: 2.3443021248094738
+        Time to render all sets: 2.319775499869138
+        Time to render all sets: 2.457134407483327
+        Time to render all sets: 2.2873582382647821
+
+
+    with rows.append(...)
+        Time to render all sets: 0.1312406249344349
+        Time to render all sets: 0.10722062503919005
+        Time to render all sets: 0.08175837527960539
+        Time to render all sets: 0.08158408431336284
+
+I got curious and wanted to see if the algorithm would keep its runtime complexity
+of n if I used string concatination (rows += "...") instead of appending each row
+to the rows-list. To my surprise (at least kinda surpised), this lead to similar 
+runtime of linear complexity:
+
+    With rows += ...
+        Time to render all sets: 0.0999759160913527
+        Time to render all sets: 0.0907822921872139
+        Time to render all sets: 0.0801090830937028
+        Time to render all sets: 0.10945095913484693
+
+    For instance, if I would have done the same in Java, this algorithm would have 
+    been much slower due to Painter's problem, and I would have to use StringBuilder
+    instead. But string concatination is just as fast, because python can optimize 
+    string concatination in specific situations (this being one of them), but it is
+    not a design guarentee that one should rely on for algorithmic optimization, 
+    which is why I decided to keep list+join.

@@ -1,7 +1,9 @@
 import json
 import html
 import psycopg
-from flask import Flask, Response, request
+import gzip
+import io
+from flask import Flask, Response, request, make_response
 from time import perf_counter
 
 app = Flask(__name__)
@@ -17,13 +19,26 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    template = open("templates/index.html").read()
+    template = ""
+    with open("templates/index.html") as f:
+        template = f.read()
     return Response(template)
 
 
 @app.route("/sets")
 def sets():
-    template = open("templates/sets.html").read()
+    requested_encoding = request.args.get("encoding")
+    print(f"User's requested encoding: {requested_encoding}")
+
+    if requested_encoding is None or (requested_encoding != "utf-8" and requested_encoding != "utf-16"):
+        requested_encoding = "utf-8"
+    else:
+        requested_encoding = requested_encoding.lower()
+
+    template = ""
+    with open("templates/sets.html") as f:
+        template = f.read()
+
     rows = []
 
     start_time = perf_counter()
@@ -40,12 +55,30 @@ def sets():
         conn.close()
 
     page_html = template.replace("{ROWS}", "".join(rows))
-    return Response(page_html, content_type="text/html")
+    
+    compressed_content = io.BytesIO()
+    with gzip.GzipFile(fileobj=compressed_content, mode="wb") as fgz:
+        if requested_encoding == "utf-8":
+            page_html = page_html.replace("{METATAG}", '<meta charset="UTF-8">')
+            fgz.write(page_html.encode("utf-8"))
+        else:
+            page_html = page_html.replace("{METATAG}", "")
+            fgz.write(page_html.encode("utf-16"))
+    
+    gzipped_bytes = compressed_content.getvalue()
 
+    response = make_response(gzipped_bytes)
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"] = len(gzipped_bytes)
+    response.headers["Content-Type"] = f"text/html; charset={requested_encoding}"
+
+    return response
 
 @app.route("/set")
 def legoSet():  # We don't want to call the function `set`, since that would hide the `set` data type.
-    template = open("templates/set.html").read()
+    template = "" 
+    with open("templates/set.html") as f:
+        template = f.read()
     return Response(template)
 
 

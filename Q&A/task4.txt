@@ -1,0 +1,14 @@
+Question:
+    Use the web browser's developer tools to inspect the Content-Length header in the responses, 
+    and see what effect the encoding has on the response size.
+
+Answer:
+    Request: sets?encoding=utf-8
+    Content-Length: 332449
+
+    Request: sets?encoding=utf-16
+    Content_length: 388328
+
+    This is expected, utf-8 uses 1-4 bytes per character while utf-16 uses 2-4 bytes per character.
+    So all ASCII charcters in utf-8 encoding takes 1 byte, while all ASCII characters in utf-16 
+    encoding takes 2 bytes, hence the length difference. 

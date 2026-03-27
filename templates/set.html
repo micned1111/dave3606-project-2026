@@ -27,15 +27,31 @@
             fetch(`/api/set?id=${setId}`)
                 .then(function(setData) { return setData.json(); })
                 .then(function(setJson) {
+                    const setId = document.getElementById("setId");
+                    setId.innerText = setJson["set_id"];
+
+                    const setName = document.getElementById("setName");
+                    setName.innerText = setJson["set_name"];
+
                     const inventoryTable = document.getElementById("inventory");
-                    const inventoryRow = document.createElement("tr");
-                    inventoryRow.innerHTML = (
-                        "<td>Example row</td>" +
-                        "<td>to show how to</td>" +
-                        "<td>dynamically construct HTML</td>" +
-                        "<td>in JavaScript</td>"
-                    )
-                    inventoryTable.appendChild(inventoryRow);
+
+                    const bricks = setJson["bricks_data"];
+
+                    for (let i = 0; i < bricks.length; i++) {
+                        const inventoryRow = document.createElement("tr");
+                        const imgUrl = bricks[i]["img_url"];
+                        const name = bricks[i]["name"];
+                        const colorId = bricks[i]["color"];
+                        const count = bricks[i]["count"];
+
+                        inventoryRow.innerHTML += (
+                            `<td><img src=${imgUrl}></td>` +
+                            `<td>${name}</td>` +
+                            `<td>${colorId}</td>` +
+                            `<td>${count}</td>`
+                        );
+                        inventoryTable.appendChild(inventoryRow);
+                    }
                 })
                 .catch(function(err) {
                     document.getElementById("error").textContent = "Failed to load data: " + err;

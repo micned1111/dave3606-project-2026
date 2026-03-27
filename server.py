@@ -19,6 +19,25 @@ DB_CONFIG = {
     "password": "bricks",
 }
 
+# Wrapper for psycopg database operations
+class Database:
+    def __init__(self, config):
+        self.config = config
+        self.conn = None
+        self.cur = None
+    
+    def execute_and_fetch_all(self, query, params=()):
+        self.conn = psycopg.connect(**self.config)
+        self.cur = self.conn.cursor()
+        self.cur.execute(query, params)
+        return self.cur.fetchall()
+    
+    def close(self):
+        if self.cur:
+            self.cur.close()
+        if self.conn:
+            self.conn.close()
+
 
 @app.route("/")
 def index():
@@ -31,53 +50,63 @@ def index():
 @app.route("/sets")
 def sets():
     requested_encoding = request.args.get("encoding")
-    print(f"User's requested encoding: {requested_encoding}")
+    
+    db = Database(DB_CONFIG)
+    try:
+        html_content = render_sets_page(db, requested_encoding)
+    finally:
+        db.close()
+    
+    # Compress and return
+    compressed_content = io.BytesIO()
+    with gzip.GzipFile(fileobj=compressed_content, mode="wb") as fgz:
+        if requested_encoding == "utf-16":
+            fgz.write(html_content.encode("utf-16"))
+        else:
+            fgz.write(html_content.encode("utf-8"))
+    
+    gzipped_bytes = compressed_content.getvalue()
+    response = make_response(gzipped_bytes)
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"] = len(gzipped_bytes)
+    response.headers["Content-Type"] = f"text/html; charset={requested_encoding or 'utf-8'}"
+    response.cache_control.max_age = 60
+    response.cache_control.public = True
+    
+    return response
 
+
+def render_sets_page(db, requested_encoding):
+    """Render the sets page HTML with database lookup."""
+    print(f"User's requested encoding: {requested_encoding}")
+    
     if requested_encoding is None or (requested_encoding != "utf-8" and requested_encoding != "utf-16"):
         requested_encoding = "utf-8"
     else:
         requested_encoding = requested_encoding.lower()
-
+    
     template = ""
     with open("templates/sets.html") as f:
         template = f.read()
-
+    
     rows = []
-
     start_time = perf_counter()
-    conn = psycopg.connect(**DB_CONFIG)
-    try:
-        with conn.cursor() as cur:
-            cur.execute("select id, name from lego_set order by id")
-            for row in cur.fetchall():
-                html_safe_id = html.escape(row[0])
-                html_safe_name = html.escape(row[1])
-                rows.append(f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>\n')
-        print(f"Time to render all sets: {perf_counter() - start_time}")
-    finally:
-        conn.close()
-
+    
+    results = db.execute_and_fetch_all("select id, name from lego_set order by id")
+    for row in results:
+        html_safe_id = html.escape(row[0])
+        html_safe_name = html.escape(row[1])
+        rows.append(f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>\n')
+    
+    print(f"Time to render all sets: {perf_counter() - start_time}")
+    
     page_html = template.replace("{ROWS}", "".join(rows))
+    if requested_encoding == "utf-8":
+        page_html = page_html.replace("{METATAG}", '<meta charset="UTF-8">')
+    else:
+        page_html = page_html.replace("{METATAG}", "")
     
-    compressed_content = io.BytesIO()
-    with gzip.GzipFile(fileobj=compressed_content, mode="wb") as fgz:
-        if requested_encoding == "utf-8":
-            page_html = page_html.replace("{METATAG}", '<meta charset="UTF-8">')
-            fgz.write(page_html.encode("utf-8"))
-        else:
-            page_html = page_html.replace("{METATAG}", "")
-            fgz.write(page_html.encode("utf-16"))
-    
-    gzipped_bytes = compressed_content.getvalue()
-
-    response = make_response(gzipped_bytes)
-    response.headers["Content-Encoding"] = "gzip"
-    response.headers["Content-Length"] = len(gzipped_bytes)
-    response.headers["Content-Type"] = f"text/html; charset={requested_encoding}"
-    response.cache_control.max_age = 60 # seconds
-    response.cache_control.public = True
-
-    return response
+    return page_html
 
 
 class Node:
@@ -168,51 +197,58 @@ def apiSet():
         print(f"LEGO set with id: {set_id} was retrieved from cache, time to retrieve: {end_time * 1000} ms")
         return Response(json_result, content_type="application/json")
 
-    name, bricks = load_set_data(set_id)
-
-    res = {
-        "set_id": set_id,
-        "set_name": name,
-        "bricks_data": bricks,
-    }
-
-    json_result = json.dumps(res, indent=4)
-    addToCache(set_id, json_result) # check if available space and add to cache
+    db = Database(DB_CONFIG)
+    try:
+        json_result = get_set_json(db, set_id)
+    finally:
+        db.close()
+    
+    addToCache(set_id, json_result)
     end_time = perf_counter() - start_time
     print(f"LEGO set with id: {set_id} was retrieved from database: {end_time * 1000} ms")
 
     return Response(json_result, content_type="application/json")
 
+# Retreives set data from db and returns it as JSON string
+def get_set_json(db, set_id):
+    name, bricks = load_set_data(db, set_id)
+    res = {
+        "set_id": set_id,
+        "set_name": name,
+        "bricks_data": bricks,
+    }
+    return json.dumps(res, indent=4)
 
-def load_set_data(set_id):
+# Loads set name and bricks from db
+def load_set_data(db, set_id):
     name = ""
     bricks = []
 
-    conn = psycopg.connect(**DB_CONFIG)
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT name FROM lego_set WHERE id = %s", (set_id,))
-            name = html.escape(cur.fetchone()[0])
+    # Get set name
+    results = db.execute_and_fetch_all("SELECT name FROM lego_set WHERE id = %s", (set_id,))
+    if results:
+        name = html.escape(results[0][0])
 
-            cur.execute("SELECT brick_type_id, color_id, count FROM lego_inventory WHERE set_id = %s", (set_id,))
-            for row in cur.fetchall():
-                brick_id = html.escape(row[0])
-                color_id = html.escape(str(row[1]))
-                brick_count = html.escape(str(row[2]))
+    # Get inventory items
+    inv_results = db.execute_and_fetch_all("SELECT brick_type_id, color_id, count FROM lego_inventory WHERE set_id = %s", (set_id,))
+    
+    for row in inv_results:
+        brick_id = html.escape(row[0])
+        color_id = html.escape(str(row[1]))
+        brick_count = html.escape(str(row[2]))
 
-                cur.execute("SELECT name, preview_image_url FROM lego_brick WHERE brick_type_id = %s AND color_id = %s", (brick_id, color_id))
-                name_and_img = cur.fetchone()
-                brick_name = html.escape(name_and_img[0])
-                brick_img_url = html.escape(name_and_img[1])
+        # Get brick details
+        brick_results = db.execute_and_fetch_all("SELECT name, preview_image_url FROM lego_brick WHERE brick_type_id = %s AND color_id = %s", (brick_id, color_id))
+        if brick_results:
+            brick_name = html.escape(brick_results[0][0])
+            brick_img_url = html.escape(brick_results[0][1])
 
-                bricks.append({
-                    "img_url": brick_img_url,
-                    "name": brick_name,
-                    "color": colors.get(int(color_id), f"Color {color_id}"),
-                    "count": brick_count
-                })
-    finally:
-        conn.close()
+            bricks.append({
+                "img_url": brick_img_url,
+                "name": brick_name,
+                "color": colors.get(int(color_id), f"Color {color_id}"),
+                "count": brick_count
+            })
 
     return name, bricks
 
@@ -302,7 +338,11 @@ def apiBinWriteSet():
     if not set_id:
         return Response("Missing id query parameter", status=400)
 
-    name, bricks = load_set_data(set_id)
+    db = Database(DB_CONFIG)
+    try:
+        name, bricks = load_set_data(db, set_id)
+    finally:
+        db.close()
 
     buffer = io.BytesIO()
     write(buffer, set_id, name, bricks)

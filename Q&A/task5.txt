@@ -1,0 +1,116 @@
+First sub-task:
+    Example of JSON output after calling /api/set?id=00-1:
+        {
+            "set_id": "00-1",
+            "set_name": "Weetabix Castle",
+            "bricks_data": [
+                {
+                    "img_url": "https://img.bricklink.com/P/11/3062a.jpg",
+                    "name": "Black Brick, Round  1 x 1 - Solid Stud, Bottom Lip",
+                    "color_id": "11",
+                    "count": "8"
+                },
+                {
+                    "img_url": "https://img.bricklink.com/P/7/3004.jpg",
+                    "name": "Blue Brick 1 x 2",
+                    "color_id": "7",
+                    "count": "3"
+                },
+                {
+                    "img_url": "https://img.bricklink.com/P/7/3003old.jpg",
+                    "name": "Blue Brick 2 x 2 without Inside Supports",
+                    "color_id": "7",
+                    "count": "3"
+                },
+                {
+                    "img_url": "https://img.bricklink.com/P/7/3001old.jpg",
+                    "name": "Blue Brick 2 x 4 without Cross Supports",
+                    "color_id": "7",
+                    "count": "4"
+                },
+                ...
+            ]
+        }
+
+
+Second sub-task
+    Quick eplanation explaining the format:
+        * 4 bytes: magic "LEGOSET"
+        * 1 byte: version
+        * 2 bytes: set_id length, then set_id bytes (utf-8)
+        * 2 bytes: set_name length, then set_name bytes (utf-8)
+        * 4 bytes: number of brick records
+
+        * per brick:
+            2 bytes: image URL length, then bytes
+            2 bytes: brick name length, then bytes
+            2 bytes: color length, then bytes
+            2 bytes: count
+
+    How to test read:
+        1. Start server in one terminal: python serber.py
+
+        2: run command in other terminal:
+            curl -s "http://127.0.0.1:5001/api/write/set?id=00-1" -o /tmp/set.bin
+
+        3: Decode using read function by running this command in other terminal:
+            python - <<'PY'
+            from server import read
+            with open("/tmp/set.bin", "rb") as f:
+                read(f)
+            PY
+        
+        Example test result:
+            set_id: 00-1
+            set_name: Weetabix Castle
+            Brick with img_url: https://img.bricklink.com/P/11/3062a.jpg, brick_name: Black Brick, Round  1 x 1 - Solid Stud, Bottom Lip, color: Black, count: 8
+            Brick with img_url: https://img.bricklink.com/P/7/3004.jpg, brick_name: Blue Brick 1 x 2, color: Blue, count: 3
+            Brick with img_url: https://img.bricklink.com/P/7/3003old.jpg, brick_name: Blue Brick 2 x 2 without Inside Supports, color: Blue, count: 3
+            Brick with img_url: https://img.bricklink.com/P/7/3001old.jpg, brick_name: Blue Brick 2 x 4 without Cross Supports, color: Blue, count: 4
+            Brick with img_url: https://img.bricklink.com/P/7/3062a.jpg, brick_name: Blue Brick, Round  1 x 1 - Solid Stud, Bottom Lip, color: Blue, count: 2
+            Brick with img_url: https://img.bricklink.com/P/7/3039.jpg, brick_name: Blue Slope 45 2 x 2, color: Blue, count: 4
+            Brick with img_url: https://img.bricklink.com/P/7/3043.jpg, brick_name: Blue Slope 45 2 x 2 Double, color: Blue, count: 1
+            Brick with img_url: https://img.bricklink.com/P/7/3045.jpg, brick_name: Blue Slope 45 2 x 2 Double Convex Corner, color: Blue, count: 11
+            Brick with img_url: https://img.bricklink.com/P/7/3038.jpg, brick_name: Blue Slope 45 2 x 3, color: Blue, count: 2
+            Brick with img_url: https://img.bricklink.com/P/9/700eD.jpg, brick_name: Light Gray Brick 10 x 20 with Bottom Tubes in Single Row Around Edge, with &#x27;+&#x27; Cross Support, color: Light Gray, count: 3
+            Brick with img_url: https://img.bricklink.com/P/9/3022.jpg, brick_name: Light Gray Plate 2 x 2, color: Light Gray, count: 1
+            Brick with img_url: https://img.bricklink.com/P/9/3021.jpg, brick_name: Light Gray Plate 2 x 3, color: Light Gray, count: 16
+            Brick with img_url: https://img.bricklink.com/P/9/3020.jpg, brick_name: Light Gray Plate 2 x 4, color: Light Gray, count: 10
+            Brick with img_url: https://img.bricklink.com/P/9/3035.jpg, brick_name: Light Gray Plate 4 x 8, color: Light Gray, count: 6
+            Brick with img_url: https://img.bricklink.com/P/9/3036.jpg, brick_name: Light Gray Plate 6 x 8, color: Light Gray, count: 2
+            Brick with img_url: https://img.bricklink.com/P/9/3028.jpg, brick_name: Light Gray Plate 6 x 12, color: Light Gray, count: 1
+            Brick with img_url: https://img.bricklink.com/P/5/3005.jpg, brick_name: Red Brick 1 x 1, color: Red, count: 2
+            Brick with img_url: https://img.bricklink.com/P/5/3004.jpg, brick_name: Red Brick 1 x 2, color: Red, count: 22
+            Brick with img_url: https://img.bricklink.com/P/5/3010.jpg, brick_name: Red Brick 1 x 4, color: Red, count: 2
+            Brick with img_url: https://img.bricklink.com/P/5/3009.jpg, brick_name: Red Brick 1 x 6, color: Red, count: 8
+            Brick with img_url: https://img.bricklink.com/P/5/3008.jpg, brick_name: Red Brick 1 x 8, color: Red, count: 2
+            Brick with img_url: https://img.bricklink.com/P/5/3002old.jpg, brick_name: Red Brick 2 x 3 without Cross Supports, color: Red, count: 6
+            Brick with img_url: https://img.bricklink.com/P/5/3001old.jpg, brick_name: Red Brick 2 x 4 without Cross Supports, color: Red, count: 9
+            Brick with img_url: https://img.bricklink.com/P/5/3007.jpg, brick_name: Red Brick 2 x 8, color: Red, count: 4
+            Brick with img_url: https://img.bricklink.com/P/5/3006.jpg, brick_name: Red Brick 2 x 10, color: Red, count: 9
+            Brick with img_url: https://img.bricklink.com/P/5/29bc01.jpg, brick_name: Red Window 1 x 1 x 2 with Extended Lip, with Glass, color: Red, count: 8
+            Brick with img_url: https://img.bricklink.com/P/1/3005.jpg, brick_name: White Brick 1 x 1, color: White, count: 36
+            Brick with img_url: https://img.bricklink.com/P/1/3004.jpg, brick_name: White Brick 1 x 2, color: White, count: 63
+            Brick with img_url: https://img.bricklink.com/P/1/3010.jpg, brick_name: White Brick 1 x 4, color: White, count: 42
+            Brick with img_url: https://img.bricklink.com/P/1/3009.jpg, brick_name: White Brick 1 x 6, color: White, count: 18
+            Brick with img_url: https://img.bricklink.com/P/1/3008.jpg, brick_name: White Brick 1 x 8, color: White, count: 2
+            Brick with img_url: https://img.bricklink.com/P/1/3003old.jpg, brick_name: White Brick 2 x 2 without Inside Supports, color: White, count: 5
+            Brick with img_url: https://img.bricklink.com/P/1/3002old.jpg, brick_name: White Brick 2 x 3 without Cross Supports, color: White, count: 16
+            Brick with img_url: https://img.bricklink.com/P/1/3001old.jpg, brick_name: White Brick 2 x 4 without Cross Supports, color: White, count: 25
+            Brick with img_url: https://img.bricklink.com/P/1/3062a.jpg, brick_name: White Brick, Round  1 x 1 - Solid Stud, Bottom Lip, color: White, count: 2
+            Brick with img_url: https://img.bricklink.com/P/1/777px8.jpg, brick_name: White Flag on Flagpole, Wave with LEGO Logo in Red Ellipse Pattern, color: White, count: 1
+            Brick with img_url: https://img.bricklink.com/P/1/3022.jpg, brick_name: White Plate 2 x 2, color: White, count: 2
+            Brick with img_url: https://img.bricklink.com/P/1/3021.jpg, brick_name: White Plate 2 x 3, color: White, count: 1
+            Brick with img_url: https://img.bricklink.com/P/1/3020.jpg, brick_name: White Plate 2 x 4, color: White, count: 1
+            Brick with img_url: https://img.bricklink.com/P/1/29bc01.jpg, brick_name: White Window 1 x 1 x 2 with Extended Lip, with Glass, color: White, count: 6
+            Brick with img_url: https://img.bricklink.com/P/1/7026bc01.jpg, brick_name: White Window 1 x 2 x 2 with Extended Lip, with Glass, Hole in Top, color: White, count: 2
+            Brick with img_url: https://img.bricklink.com/P/3/3005.jpg, brick_name: Yellow Brick 1 x 1, color: Yellow, count: 19
+            Brick with img_url: https://img.bricklink.com/P/3/3004.jpg, brick_name: Yellow Brick 1 x 2, color: Yellow, count: 27
+            Brick with img_url: https://img.bricklink.com/P/3/3010.jpg, brick_name: Yellow Brick 1 x 4, color: Yellow, count: 18
+            Brick with img_url: https://img.bricklink.com/P/3/3009.jpg, brick_name: Yellow Brick 1 x 6, color: Yellow, count: 13
+            Brick with img_url: https://img.bricklink.com/P/3/3008.jpg, brick_name: Yellow Brick 1 x 8, color: Yellow, count: 14
+            Brick with img_url: https://img.bricklink.com/P/3/3003old.jpg, brick_name: Yellow Brick 2 x 2 without Inside Supports, color: Yellow, count: 4
+            Brick with img_url: https://img.bricklink.com/P/3/3007.jpg, brick_name: Yellow Brick 2 x 8, color: Yellow, count: 1
+            Brick with img_url: https://img.bricklink.com/P/3/3006.jpg, brick_name: Yellow Brick 2 x 10, color: Yellow, count: 2
+            Brick with img_url: https://img.bricklink.com/P/3/3032.jpg, brick_name: Yellow Plate 4 x 6, color: Yellow, count: 1
+            Brick with img_url: https://img.bricklink.com/P/3/3035.jpg, brick_name: Yellow Plate 4 x 8, color: Yellow, count: 1

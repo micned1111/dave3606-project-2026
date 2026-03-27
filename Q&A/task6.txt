@@ -1,0 +1,43 @@
+Cache design and eviction policy
+    I decided to use an in-memory LRU cache implemented with two data structures:
+        * A hash map from set_id to node, for constant-time lookup.
+        * A doubly linked list, where head is most recently used and tail is least recently used.
+
+    Eviction policy
+        * When capacity is reached, the least recently used entry (tail) is removed.
+
+Complexity
+    * Lookup in cache: O(1)
+    * Move existing node to head: O(1)
+    * Insert new node: O(1)
+    * Evict tail node: O(1)
+
+Timing results
+    Testing retrieving sets with MAX = 3 instead of 100: 
+        * 00-1 (should access via db)
+        * 00-2 (should access via db)
+        * 00-3 (should access via db)
+        * 00-1 (should access via cache)
+        * 00-4 (should access via db and eviction should happen)
+    
+    Result
+        * LEGO set with id: 00-1 was retrieved from database: 225.50437499999987 ms
+
+        * LEGO set with id: 00-2 was retrieved from database: 31.822166000001317 ms
+
+        * LEGO set with id: 00-3 was retrieved from database: 49.614207999994164 ms
+
+        * LEGO set with id: 00-1 was retrieved from cache, time to retrieve: 0.03691599999910977 ms
+
+        * Eviction policy removing set id: 00-2
+        * LEGO set with id: 00-4 was retrieved from database: 64.29387499999706 ms
+
+I added the cache header to /sets endpoint like this:
+    response.cache_control.max_age = 60 # seconds
+    response.cache_control.public = True
+
+    At first I thought it did not work because as I reloaded the paeg (clicked the reload button: "Last in denne siden på nytt"),
+    I noticed it made requests to the server. Turns out most modern browsers intentiaonally ignores the local cache for the makin
+    page to ensure it shows the latest content. To confirm that the cache was in fact working, instead of refreshing, I entered
+    the address bar and pressed enter without changing the URL, and thats when I noticed that the browser did not make a request
+    to the server (unless I waited too long and went over the 1 min cache limit).

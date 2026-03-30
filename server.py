@@ -121,7 +121,7 @@ tail = None
 
 
 CURRENT_SETS = 0
-MAX_SETS = 3
+MAX_SETS = 100
 set_cache = {} # {setId: Node}
 
 def addToCache(id, result):
